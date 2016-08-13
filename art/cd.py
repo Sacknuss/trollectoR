@@ -8,8 +8,8 @@ import urllib.request
 root = config.root
 api_key_fanart = config.api_key_fanart
 
-url_artist = "http://musicbrainz.org/ws/2/artist/?query=%s&fmt=json"
-url_release_group = "http://musicbrainz.org/ws/2/release-group?artist=%s&type=album&fmt=json"
+url_artist = "http://musicbrainz-mirror.eu:5000/ws/2/artist/?query=%s&fmt=json"
+url_release_group = "http://musicbrainz-mirror.eu:5000/ws/2/release-group?artist=%s&type=album&fmt=json"
 user_agent = {'User-Agent': 'TheCollector/0.0.1 ( anomalitaet@gmail.com )'}
 
 
@@ -21,14 +21,15 @@ def create_cd_list():
 
     for artist in artists:
 
-        artist_dir = os.path.join(root + '\\' + artist)
+        artist_dir = os.path.join(root + '/' + artist)
         records = os.listdir(artist_dir)
         records.sort()
 
         for record in records:
 
-            record_dir = os.path.join(root + '\\' + artist + '\\' + record)
-            cd_list.append([artist, record, record_dir])
+            record_dir = os.path.join(root + '/' + artist + '/' + record)
+            if os.path.isdir(record_dir):
+                cd_list.append([artist, record, record_dir])
 
     return cd_list
 
@@ -78,10 +79,10 @@ def get_disc_art(artist_id, release_id, path):
 
             if counter < 1:
                 img_url = cover['url']
-                urllib.request.urlretrieve(img_url, path + '\\cdart.png')
+                urllib.request.urlretrieve(img_url, path + '/cdart.png')
             else:
                 img_url = cover['url']
-                urllib.request.urlretrieve(img_url, path + '\\cdart' + str(counter) + '.png')
+                urllib.request.urlretrieve(img_url, path + '/cdart' + str(counter) + '.png')
 
             counter += 1
 
@@ -105,10 +106,10 @@ def get_cover_art(artist_id, release_id, path):
 
             if counter < 1:
                 img_url = cover['url']
-                urllib.request.urlretrieve(img_url, path + '\\fanart.jpg')
+                urllib.request.urlretrieve(img_url, path + '/fanart.jpg')
             else:
                 img_url = cover['url']
-                urllib.request.urlretrieve(img_url, path + '\\fanart' + str(counter) + '.jpg')
+                urllib.request.urlretrieve(img_url, path + '/fanart' + str(counter) + '.jpg')
 
             counter += 1
 
