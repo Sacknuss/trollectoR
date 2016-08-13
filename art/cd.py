@@ -2,6 +2,7 @@ __author__ = 'Lucky Hooker'
 
 import config
 import os
+import re
 import simplejson
 import urllib.request
 
@@ -152,7 +153,10 @@ def get_release_group_by_name(artist_id, name):
         release_group_name = release_group['title']
         release_group_mbid = release_group['id']
 
-        if name.lower() == release_group_name.lower():
+        name = re.sub('[^a-zA-Z0-9\s]','',name.lower())
+        release_group_name = re.sub('[^a-zA-Z0-9\s]','',release_group_name.lower())
+
+        if name == release_group_name:
 
             records.update({release_group_name: release_group_mbid})
 
