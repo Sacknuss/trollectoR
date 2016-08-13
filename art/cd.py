@@ -152,7 +152,7 @@ def get_release_group_by_name(artist_id, name):
         release_group_name = release_group['title']
         release_group_mbid = release_group['id']
 
-        if name.lower() in  release_group_name.lower():
+        if name.lower() == release_group_name.lower():
 
             records.update({release_group_name: release_group_mbid})
 
