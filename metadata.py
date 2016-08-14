@@ -1,7 +1,9 @@
 __author__ = 'Lucky Hooker'
 
 import config
+import mutagen
 import os
+import pathlib
 import re
 import simplejson
 import urllib.request
@@ -13,7 +15,7 @@ url_artist = "http://musicbrainz-mirror.eu:5000/ws/2/artist/?query=%s&fmt=json"
 url_release_group = "http://musicbrainz-mirror.eu:5000/ws/2/release-group?artist=%s&type=album&fmt=json"
 user_agent = {'User-Agent': 'TheCollector/0.0.1 ( anomalitaet@gmail.com )'}
 
-def create_cd_list():
+def create_list_complete():
 
     cd_list = []
     artists = os.listdir(root)
@@ -33,6 +35,37 @@ def create_cd_list():
                 cd_list.append([artist, record, record_dir])
 
     return cd_list
+
+def create_list_artist(artist):
+
+	cd_list = []
+	records = os.listdir(root + '/' + artist)
+	records.sort()
+
+	for record in records:
+
+		record_dir = os.path.join(root + '/' + artist + '/' + record)
+		
+		if os.path.isdir(record_dir):
+			cd_list.append([artist, record, record_dir])
+
+	return cd_list		
+
+def create_list_record(artist, record):
+
+        cd_list = []
+        record_name = record
+        records = os.listdir(root + '/' + artist)
+        records.sort()
+
+        for record in records:
+
+                record_dir = os.path.join(root + '/' + artist + '/' + record)
+
+                if os.path.isdir(record_dir) and record.lower() == record_name.lower():
+                        cd_list.append([artist, record, record_dir])
+
+        return cd_list
 
 def get_artists_by_name(name):
 
@@ -74,3 +107,26 @@ def get_release_group_by_name(artist_id, name):
             records.update({release_group_name: release_group_mbid})
 
     return records
+
+def get_record_metadata(record_dir):
+
+	songs = os.listdir(record_dir)
+	songs.sort()
+	album = dict()	
+	
+	for song in songs:
+
+		path = record_dir + '/' + song
+		extension = pathlib.Path(path).suffix
+
+		if extension == '.flac':
+			metadata = mutagen.File(path)
+			
+			for item in metadata.items():
+				if item[0] == 'tracknumber':
+					track_number = item[1].pop()			
+
+			song_length = round(metadata.info.length,2)
+			album.update({track_number: song_length})
+
+	print(album)
