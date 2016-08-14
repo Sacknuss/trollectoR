@@ -9,8 +9,8 @@ import urllib.request
 root = config.root
 api_key_fanart = config.api_key_fanart
 
-url_artist = "http://musicbrainz-mirror.eu:5000/ws/2/artist/?query=%s&fmt=json"
-url_release_group = "http://musicbrainz-mirror.eu:5000/ws/2/release-group?artist=%s&type=album&fmt=json"
+url_artist = config.url_musicbrainz + 'artist/?query=%s&fmt=json'
+url_release_group = config.url_musicbrainz + 'release-group?artist=%s&type=album&fmt=json'
 user_agent = {'User-Agent': 'TheCollector/0.0.1 ( anomalitaet@gmail.com )'}
 
 def exist_cd_art(path):
