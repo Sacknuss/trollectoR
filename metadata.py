@@ -1,6 +1,7 @@
 __author__ = 'Lucky Hooker'
 
 import config
+import math
 import mutagen
 import os
 import pathlib
@@ -86,7 +87,7 @@ def get_artists_by_name(name):
 
     return artists
 
-def get_release_group_by_name(artist_id, name):
+def get_release_group_by_name(artist_id, album):
 
     records = dict()
     artist_id = urllib.request.quote(artist_id)
@@ -100,20 +101,24 @@ def get_release_group_by_name(artist_id, name):
         release_group_name = release_group['title']
         release_group_mbid = release_group['id']
 
-        name = re.sub('[^a-zA-Z0-9\s]','',name.lower())
+        album = re.sub('[^a-zA-Z0-9\s]','',album.lower())
         release_group_name = re.sub('[^a-zA-Z0-9\s]','',release_group_name.lower())
 
-        if name == release_group_name:
+        if album == release_group_name:
             records.update({release_group_name: release_group_mbid})
 
     return records
 
-def get_record_metadata(record_dir):
+def get_record_metadata(artist, album, record_dir):
 
 	songs = os.listdir(record_dir)
-	songs.sort()
-	album = dict()	
 	
+	album_length = 0
+
+	dictionary = dict()	
+	dictionary.update({'artist': artist})
+	dictionary.update({'album': album})	
+
 	for song in songs:
 
 		path = record_dir + '/' + song
@@ -124,9 +129,17 @@ def get_record_metadata(record_dir):
 			
 			for item in metadata.items():
 				if item[0] == 'tracknumber':
-					track_number = item[1].pop()			
+					track_number = int(item[1].pop())			
 
-			song_length = round(metadata.info.length,2)
-			album.update({track_number: song_length})
+			min, sec  = divmod(metadata.info.length,60)
+			song_length = "%d:%02d" % (min, sec)
+			dictionary.update({track_number: song_length})
 
-	print(album)
+			album_length += metadata.info.length
+	
+	min, sec = divmod(album_length, 60)
+	hours, min = divmod(min, 60)
+	album_length = "%d:%02d:%02d" % (hours, min, sec)
+	dictionary.update({'album length': album_length})
+
+	return dictionary
