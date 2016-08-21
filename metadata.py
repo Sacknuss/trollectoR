@@ -2,19 +2,16 @@ __author__ = 'Lucky Hooker'
 
 import config
 import math
+import musicbrainzngs
 import mutagen
 import os
 import pathlib
 import re
-import simplejson
-import urllib.request
 
 root = config.root
 api_key_fanart = config.api_key_fanart
 
-url_artist = config.url_musicbrainz + 'artist/?query=%s&fmt=json'
-url_release_group = config.url_musicbrainz + 'release-group?artist=%s&type=album&fmt=json'
-user_agent = {'User-Agent': 'TheCollector/0.0.1 ( anomalitaet@gmail.com )'}
+musicbrainzngs.set_useragent('TheCollector','0.0.1','anomalitaet@gmail.com')
 
 def create_list_complete():
 
@@ -71,18 +68,14 @@ def create_list_record(artist, record):
 def get_artists_by_name(name):
 
     artists = dict()
-    name = urllib.request.quote(name)
-    req = urllib.request.Request(url=url_artist % name, data=None, headers=user_agent)
-    handler = urllib.request.urlopen(req)
-    response = handler.read()
-    result = simplejson.loads(response)
+    result = musicbrainzngs.search_artists(artist=name)
 
-    for artist in result['artists']:
+    for artist in result['artist-list']:
 
         artist_name = artist['name']
         artist_mbid = artist['id']
 
-        if artist['score'] == "100":
+        if artist['ext:score'] == "100":
             artists.update({artist_mbid:artist_name})
 
     return artists
@@ -90,24 +83,28 @@ def get_artists_by_name(name):
 def get_release_group_by_name(artist_id, album):
 
     records = dict()
-    artist_id = urllib.request.quote(artist_id)
-    req = urllib.request.Request(url=url_release_group % artist_id, data=None, headers=user_agent)
-    handler = urllib.request.urlopen(req)
-    response = handler.read()
-    result = simplejson.loads(response)
+    result = musicbrainzngs.search_release_groups(arid=artist_id,release=album,strict=True)
 
-    for release_group in result['release-groups']:
+    for release_group in result['release-group-list']:
 
         release_group_name = release_group['title']
         release_group_mbid = release_group['id']
-
-        album = re.sub('[^a-zA-Z0-9\s]','',album.lower())
-        release_group_name = re.sub('[^a-zA-Z0-9\s]','',release_group_name.lower())
-
-        if album == release_group_name:
-            records.update({release_group_name: release_group_mbid})
+        records.update({release_group_name: release_group_mbid})
 
     return records
+
+def get_releases(artist_id, release_group_id):
+
+	records = dict()
+	result = musicbrainzngs.search_releases(arid=artist_id,rgid=release_group_id,strict=True)
+
+	for release in result['release-list']:
+
+		release_name = release['title']
+		release_mbid = release['id']
+		records.update({release_mbid: release_name})
+
+	return records
 
 def get_record_metadata(artist, album, record_dir):
 
