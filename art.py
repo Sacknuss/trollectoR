@@ -2,10 +2,12 @@ __author__ = 'Lucky Hooker'
 
 import config
 import os
+import pprint
 import simplejson
 import urllib.request
 
 api_key_fanart = config.api_key_fanart
+pp = pprint.PrettyPrinter(indent=10)
 root = config.root
 user_agent = {'User-Agent': 'TheCollector/0.0.1 ( anomalitaet@gmail.com )'}
 
@@ -42,6 +44,7 @@ def get_disc_art(artist_id, release_group_id, path):
         url = "http://webservice.fanart.tv/v3/music/%s?api_key=%s" % (artist_id, api_key_fanart)
         result = urllib.request.urlopen(url).read()
         data = simplejson.loads(result)
+        # pp.pprint(data['albums'])
         album = data['albums'][release_group_id]
         cd_arts = album['cdart']
         counter = 0
@@ -50,11 +53,11 @@ def get_disc_art(artist_id, release_group_id, path):
             if counter < 1:
                 img_url = cover['url']
                 img_url = img_url.replace("https://", "http://")
-                urllib.request.urlretrieve(img_url, path + '/cdart.png')
+                urllib.request.urlretrieve(img_url, f'{path}/cdart.png')
             else:
                 img_url = cover['url']
                 img_url = img_url.replace("https://", "http://")
-                urllib.request.urlretrieve(img_url, path + '/cdart' + str(counter) + '.png')
+                urllib.request.urlretrieve(img_url, f'{path}/cdart{str(counter)}.png')
             counter += 1
 
     except urllib.error.HTTPError as e:
@@ -62,7 +65,7 @@ def get_disc_art(artist_id, release_group_id, path):
     except urllib.error.URLError as e:
         print(e.__dict__)
     except:
-        print("No CD Art Found!")
+        pp.pprint({'disc_art':'unavailable'})
 
 
 def get_cover_art(artist_id, release_group_id, path):
@@ -71,6 +74,7 @@ def get_cover_art(artist_id, release_group_id, path):
         result = urllib.request.urlopen(url).read()
         data = simplejson.loads(result)
         album = data['albums'][release_group_id]
+
         covers = album['albumcover']
         counter = 0
 
@@ -78,11 +82,11 @@ def get_cover_art(artist_id, release_group_id, path):
             if counter < 1:
                 img_url = cover['url']
                 img_url = img_url.replace("https://", "http://")
-                urllib.request.urlretrieve(img_url, path + '/fanart.jpg')
+                urllib.request.urlretrieve(img_url, f'{path}/fanart.jpg')
             else:
                 img_url = cover['url']
                 img_url = img_url.replace("https://", "http://")
-                urllib.request.urlretrieve(img_url, path + '/fanart' + str(counter) + '.jpg')
+                urllib.request.urlretrieve(img_url, f'{path}/fanart{str(counter)}.jpg')
             counter += 1
 
     except urllib.error.HTTPError as e:
@@ -90,7 +94,7 @@ def get_cover_art(artist_id, release_group_id, path):
     except urllib.error.URLError as e:
         print(e.__dict__)
     except:
-        print("No Fan Art Found!")
+        pp.pprint({'fanart':'unavailable'})
 
 
 def get_cd_art(artist_id, release_group_id, path):

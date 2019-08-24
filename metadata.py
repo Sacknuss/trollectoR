@@ -3,6 +3,7 @@ __author__ = 'Lucky Hooker'
 from art import get_cd_art
 import config
 import math
+from math import isclose
 import musicbrainzngs
 from mutagen.flac import FLAC, Picture
 import os
@@ -10,6 +11,7 @@ import pathlib
 import pprint
 
 root = config.root
+priority = config.priority
 musicbrainzngs.set_useragent('TheCollector','0.0.1','anomalitaet@gmail.com')
 pp = pprint.PrettyPrinter(indent=10)
 
@@ -43,7 +45,8 @@ def get_local_record_list(artist, record):
 
 
 def get_local_record_metadata(artist, album, record_dir):
-    songs = os.listdir(record_dir)
+    songs = []
+    cd_count = 0
     album_length = 0
     track_count = 0
 
@@ -51,13 +54,18 @@ def get_local_record_metadata(artist, album, record_dir):
     dictionary.update({'artist': artist})
     dictionary.update({'album': album})
 
+    for root, dirs, files in os.walk(record_dir):
+        if files:
+            for file in files:
+                songs.append(f'{root}/{file}')
+        cd_count += len(dirs)
+
     for song in songs:
-        path = record_dir + '/' + song
-        extension = pathlib.Path(path).suffix
+        extension = pathlib.Path(song).suffix
 
         if extension == '.flac':
             track_count += 1
-            metadata = FLAC(path)
+            metadata = FLAC(song)
 
             for item in metadata.items():
                 if item[0] == 'tracknumber':
@@ -65,13 +73,7 @@ def get_local_record_metadata(artist, album, record_dir):
 
             min, sec  = divmod(metadata.info.length,60)
             song_length = "%d:%02d" % (min, sec)
-            dictionary.update({track_number: song_length})
-
             album_length += metadata.info.length
-
-    min, sec = divmod(album_length, 60)
-    hours, min = divmod(min, 60)
-    album_length = "%d:%02d:%02d" % (hours, min, sec)
 
     dictionary.update({'album_length': album_length})
     dictionary.update({'track_count': track_count})
@@ -86,9 +88,7 @@ def get_musicbrainz_artists_by_name(name):
     for artist in result['artist-list']:
         artist_name = artist['name']
         artist_mbid = artist['id']
-
-        if artist['ext:score'] == "100":
-            artists.append({'artist_mbid': artist_mbid, 'artist_name': artist_name})
+        artists.append({'artist_mbid': artist_mbid, 'artist_name': artist_name})
 
     return artists
 
@@ -100,9 +100,7 @@ def get_musicbrainz_release_group_by_name(artist_id, album):
     for release_group in result['release-group-list']:
         release_group_name = release_group['title']
         release_group_mbid = release_group['id']
-
-        if release_group['ext:score'] == "100":
-            records.append({'release_group_mbid': release_group_mbid, 'release_group_name': release_group_name})
+        records.append({'release_group_mbid': release_group_mbid, 'release_group_name': release_group_name})
 
     return records
 
@@ -122,12 +120,21 @@ def get_musicbrainz_releases(artist_id, release_group_id):
 def get_musicbrainz_release(record_id):
     track_count = 0
     album_length = 0
-    release = musicbrainzngs.get_release_by_id(record_id, includes=['recordings', ])
-    release = release['release']
+    medium_types_arr = []
+
+    try:
+        release = musicbrainzngs.get_release_by_id(record_id, includes=['recordings', ])
+        release = release['release']
+    except:
+        release = musicbrainzngs.get_release_by_id(record_id)
 
     for recording in release['medium-list']:
-        track_count += int(recording['track-count'])
+        try:
+            medium_types_arr.append(recording['format'])
+        except KeyError:
+            pass
 
+        track_count += int(recording['track-count'])
         for track in recording['track-list']:
             try:
                 album_length += int(track['track_or_recording_length'])
@@ -135,10 +142,6 @@ def get_musicbrainz_release(record_id):
                 album_length += 0
 
     album_length = album_length / 1000
-    min, sec = divmod(album_length, 60)
-    hours, min = divmod(min, 60)
-    album_length = "%d:%02d:%02d" % (hours, min, sec)
-
     # try/except for values that are optional and might not exist
     try:
         date = release['date']
@@ -149,23 +152,33 @@ def get_musicbrainz_release(record_id):
         country = release['country']
     except KeyError:
         country = 'unknown'
-
-    release_dict = {'date': date, 'id': release['id'], 'medium-count': release['medium-count'],
-                    'country': country, 'track_count': track_count, 'album_length': album_length}
+    medium_types = ",".join(medium_types_arr)
+    release_dict = {'date': date, 'id': release['id'], 'medium_count': release['medium-count'],
+                    'medium_type': medium_types, 'country': country, 'track_count': track_count,
+                    'album_length': album_length}
 
     return release_dict
 
 
 def get_release_suggestions(artist_name, album_name):
-    pp = pprint.PrettyPrinter(indent=10)
-    record = get_local_record_list(artist_name, album_name)
-    release_local = get_local_record_metadata(record['artist'], record['record_name'], record['record_dir'])
+    albums = []
+    albums_count = 0
+    albums_filtered = []
+
+    translation = {'/': '-'}
+    table = str.maketrans(translation)
+
+    record = get_local_record_list(artist_name, album_name.translate(table))
+    release_local = get_local_record_metadata(record['artist'], record['record_name'].translate(table),
+                                              record['record_dir'])
     artists = get_musicbrainz_artists_by_name(artist_name)
+    # pp.pprint(release_local)
 
     for artist in artists:
         name = artist['artist_name']
         mbid = artist['artist_mbid']
         release_groups = get_musicbrainz_release_group_by_name(mbid, album_name)
+        # pp.pprint(release_groups)
 
         for release_group in release_groups:
             release_group_name = release_group['release_group_name']
@@ -175,23 +188,48 @@ def get_release_suggestions(artist_name, album_name):
 
             for release in releases:
                 release_musicbrainz = get_musicbrainz_release(release['release_mbid'])
-                if (release_musicbrainz['album_length'] == release_local['album_length'] and
-                    release_musicbrainz['track_count'] == release_local['track_count']):
-                    pp.pprint(release_musicbrainz)
+                if (isclose(int(release_musicbrainz['album_length']),
+                            int(release_local['album_length']), rel_tol=10.0, abs_tol=0.0)
+                    and release_musicbrainz['track_count'] == release_local['track_count']):
+                    # pp.pprint(release_musicbrainz)
+                    albums.append(release_musicbrainz)
+
+    for i in range(len(priority)):
+        country_value = i + 1
+        country = priority[country_value]
+        album_filter = filter(lambda x: x['country'] == country
+                              and ('CD' in x['medium_type'] or x['medium_type'] == 'unknown'), albums)
+
+        for album in album_filter:
+            albums_filtered.append(album)
+            albums_count =+ 1
+
+        if albums_count > 0:
+            for album in albums_filtered:
+                # pp.pprint(album)
+                album_id = album['id']
+                return album_id
+
+    for album_dif_country in albums:
+        # pp.pprint(album)
+        album_id = album_dif_country['id']
+        return album_id
 
 
 def set_release_metadata(artist_name, album_name, record_id):
-    release = musicbrainzngs.get_release_by_id(record_id, includes=['recordings', ])
-    release = release['release']
-    record = get_local_record_list(artist_name, album_name)
-    record_dir = record['record_dir']
-    songs = os.listdir(record_dir)
+    translation = {'/': '-'}
+    table = str.maketrans(translation)
 
+    try:
+        release = musicbrainzngs.get_release_by_id(record_id, includes=['recordings', ])
+        release = release['release']
+    except:
+        release = musicbrainzngs.get_release_by_id(record_id)
+
+    record = get_local_record_list(artist_name, album_name.translate(table))
     artist = artist_name
     album = release['title']
-    tracktotal = 0
-    for recording in release['medium-list']:
-        tracktotal += int(recording['track-count'])
+
     # try/except for values that are optional and might not exist
     try:
         date = release['date']
@@ -203,45 +241,69 @@ def set_release_metadata(artist_name, album_name, record_id):
         country = 'unknown'
 
     tracknumber = 1
-    translation = {'/': '-'}
-    table = str.maketrans(translation)
 
-    pic = Picture()
-    with open(f'{record_dir}/fanart.jpg', "rb") as f:
-        pic.data = f.read()
-    pic.mime = u"image/jpeg"
-    pic.width = 1000
-    pic.height = 1000
-    pic.depth = 16 # color depth
+    mediumtotal = release['medium-count']
 
-    for song in songs:
-        path = record['record_dir'] + '/' + song
-        extension = pathlib.Path(path).suffix
+    for i in range(1, mediumtotal + 1):
 
-        if extension == '.flac':
-            metadata = FLAC(path)
+        record_dir = record['record_dir']
+        if mediumtotal != 1:
+            path = record_dir + f'/CD{i}/'
+            art_path = record_dir + '/'
+        else:
+            path = record_dir + '/'
+            art_path = record_dir + '/'
 
-            for item in metadata.items():
-                if item[0] == 'tracknumber':
-                    tracknumber = int(item[1].pop())
+        try:
+            pic = Picture()
+            with open(f'{art_path}fanart.jpg', "rb") as f:
+                pic.data = f.read()
+            pic.mime = u"image/jpeg"
+            pic.width = 1000
+            pic.height = 1000
+            pic.depth = 16 # color depth
+        except:
+            print('No Fan Art Available!')
 
-            for recording in release['medium-list']:
-                for track in recording['track-list']:
-                    if int(track['number']) == tracknumber:
-                        tracktitle = track['recording']['title'].translate(table)
+        songs = os.listdir(path)
 
-            metadata.delete()
-            metadata.add_picture(pic)
-            metadata["Album"] = album
-            metadata["Albumartist"] = artist
-            metadata["Artist"] = artist
-            metadata["Country"] = country
-            metadata["Date"] = date
-            metadata["Title"] = tracktitle
-            metadata["Tracktotal"] = str(tracktotal)
-            metadata["Tracknumber"] = str(tracknumber)
-            metadata.save()
+        for song in songs:
+            fullpath = path + song
+            extension = pathlib.Path(fullpath).suffix
 
-            print(f'Alt: {path}')
-            print(f'Neu: {record_dir}/{artist} - {album} - {tracknumber:02} - {tracktitle}.flac')
-            os.rename(path, f'{record_dir}/{artist} - {album} - {tracknumber:02} - {tracktitle}.flac')
+            if extension == '.flac':
+                metadata = FLAC(fullpath)
+
+                for item in metadata.items():
+                    if item[0] == 'tracknumber':
+                        tracknumber = int(item[1].pop())
+
+                records = filter(lambda x: int(x['position']) == i, release['medium-list'])
+                for recording in records:
+                    tracktotal = recording['track-count']
+                    for track in recording['track-list']:
+                        if int(track['number']) == tracknumber:
+                            tracktitle = track['recording']['title'].translate(table)
+
+                metadata.delete()
+                metadata.clear_pictures()
+                if pic:
+                    metadata.add_picture(pic)
+                metadata["Album"] = album
+                metadata["Albumartist"] = artist
+                metadata["Artist"] = artist
+                metadata["Country"] = country
+                metadata["Date"] = date
+                metadata["Discnumber"] = str(i)
+                metadata["Title"] = tracktitle
+                metadata["Tracktotal"] = str(tracktotal)
+                metadata["Tracknumber"] = str(tracknumber)
+                metadata.save()
+
+                print(f'Alt: {fullpath}')
+                if mediumtotal != 1:
+                    print(f'Neu: {path}{artist} - {album.translate(table)} - CD{i} - {tracknumber:02} - {tracktitle}.flac')
+                    os.rename(fullpath, f'{path}{artist} - {album.translate(table)} - CD{i} - {tracknumber:02} - {tracktitle}.flac')
+                else:
+                    print(f'Neu: {path}{artist} - {album.translate(table)} - {tracknumber:02} - {tracktitle}.flac')
+                    os.rename(fullpath, f'{path}{artist} - {album.translate(table)} - {tracknumber:02} - {tracktitle}.flac')
